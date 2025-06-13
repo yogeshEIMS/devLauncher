@@ -24,8 +24,8 @@ function Parse-AppsFile {
             
             # Start new app
             $currentApp = @{
-                Number = $matches[1]
-                Name = $matches[2]
+                Number   = $matches[1]
+                Name     = $matches[2]
                 Commands = @()
             }
         }
@@ -85,7 +85,8 @@ function Launch-App {
         if ($cmd.StartsWith("cd ")) {
             # Change directory command
             $scriptCommands += "Set-Location '$($cmd.Substring(3).Trim())'"
-        }        elseif ($cmd -match "\.\\venv\\Scripts\\activate" -or $cmd -match "venv\\Scripts\\activate") {
+        }
+        elseif ($cmd -match "\.\\venv\\Scripts\\activate" -or $cmd -match "venv\\Scripts\\activate") {
             # Virtual environment activation - try PowerShell first, then batch file
             $scriptCommands += @"
 if (Test-Path '.\venv\Scripts\Activate.ps1') {
@@ -132,7 +133,7 @@ $($scriptCommands -join "`n    ")
     
     # Launch new PowerShell tab with the script
     $tabTitle = $App.Name
-      if ($WindowsTerminalPath -and (Test-Path $WindowsTerminalPath)) {
+    if ($WindowsTerminalPath -and (Test-Path $WindowsTerminalPath)) {
         # Use Windows Terminal if available - create new tab in current window
         $wtArgs = @(
             "-w"
@@ -148,7 +149,8 @@ $($scriptCommands -join "`n    ")
             "`"$tempScript`""
         )
         Start-Process -FilePath $WindowsTerminalPath -ArgumentList $wtArgs
-    } else {
+    }
+    else {
         # Fallback to regular PowerShell window
         $psArgs = @(
             "-NoExit"
@@ -168,7 +170,7 @@ $($scriptCommands -join "`n    ")
         Start-Sleep -Seconds 10
         if (Test-Path $scriptPath) {
             Remove-Item $scriptPath -Force -ErrorAction SilentlyContinue
-        }    } -ArgumentList $tempScript | Out-Null
+        } } -ArgumentList $tempScript | Out-Null
 }
 
 function Open-InVSCode {
@@ -195,56 +197,19 @@ function Open-InVSCode {
         return
     }
     
-    # Try to find VS Code
-    $vsCodePaths = @(
-        "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe",
-        "$env:ProgramFiles\Microsoft VS Code\Code.exe",
-        "$env:ProgramFiles(x86)\Microsoft VS Code\Code.exe"
-    )
-    
-    $vsCodePath = $null
-    foreach ($path in $vsCodePaths) {
-        if (Test-Path $path) {
-            $vsCodePath = $path
-            break
-        }
-    }
-    
-    # Check if code is in PATH
-    if (-not $vsCodePath) {
-        try {
-            $codeCmd = Get-Command code -ErrorAction Stop
-            $vsCodePath = $codeCmd.Source
-        } catch {
-            Write-Host "VS Code not found. Please install VS Code or add it to your PATH." -ForegroundColor Red
-            return
-        }
-    }
-    
-    # Open the project in VS Code
+    # Open the project in VS Code using simple approach
     Write-Host "Opening $($App.Name) in VS Code..." -ForegroundColor Green
-    Start-Process -FilePath $vsCodePath -ArgumentList "`"$projectPath`""
+    Set-Location $projectPath
+    & code .
 }
 
 function Get-VSCodePath {
-    # Try to find VS Code
-    $vsCodePaths = @(
-        "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe",
-        "$env:ProgramFiles\Microsoft VS Code\Code.exe",
-        "$env:ProgramFiles(x86)\Microsoft VS Code\Code.exe"
-    )
-    
-    foreach ($path in $vsCodePaths) {
-        if (Test-Path $path) {
-            return $path
-        }
-    }
-    
-    # Check if code is in PATH
+    # Check if code command is available
     try {
-        $codeCmd = Get-Command code -ErrorAction Stop
-        return $codeCmd.Source
-    } catch {
+        Get-Command code -ErrorAction Stop | Out-Null
+        return "code"
+    }
+    catch {
         return $null
     }
 }
@@ -266,7 +231,8 @@ function Get-WindowsTerminalPath {
     try {
         $wtPath = Get-Command wt.exe -ErrorAction Stop
         return $wtPath.Source
-    } catch {
+    }
+    catch {
         return $null
     }
 }
@@ -275,9 +241,11 @@ function Main {
     # Get the script directory - handle different execution contexts
     if ($PSScriptRoot) {
         $scriptDir = $PSScriptRoot
-    } elseif ($MyInvocation.MyCommand.Path) {
+    }
+    elseif ($MyInvocation.MyCommand.Path) {
         $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    } else {
+    }
+    else {
         $scriptDir = Get-Location
     }
     
@@ -295,11 +263,12 @@ function Main {
         Write-Error "No apps found in apps.txt"
         return
     }
-      # Get Windows Terminal path
+    # Get Windows Terminal path
     $wtPath = Get-WindowsTerminalPath
     if ($wtPath) {
         Write-Host "Windows Terminal found: $wtPath" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "Windows Terminal not found, will use regular PowerShell windows" -ForegroundColor Yellow
     }
     
@@ -307,7 +276,8 @@ function Main {
     $vsCodePath = Get-VSCodePath
     if ($vsCodePath) {
         Write-Host "VS Code found: $vsCodePath" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "VS Code not found, VS Code features will be disabled" -ForegroundColor Yellow
     }
     
@@ -352,12 +322,14 @@ function Main {
             if ($selectedApp) {
                 if ($isVSCodeCommand) {
                     Open-InVSCode -App $selectedApp
-                } else {
+                }
+                else {
                     Launch-App -App $selectedApp -WindowsTerminalPath $wtPath
                 }
                 $processedCount++
                 Start-Sleep -Milliseconds 500  # Small delay between operations
-            } else {
+            }
+            else {
                 Write-Host "Invalid selection: $letter" -ForegroundColor Red
             }
         }
