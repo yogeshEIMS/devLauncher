@@ -75,19 +75,60 @@ function Launch-App {
         [string]$WindowsTerminalPath
     )
     
-    # Create the command sequence
-    $commandSequence = ""
+    # Build a proper PowerShell script that executes commands sequentially
+    $scriptCommands = @()
+    
     foreach ($cmd in $App.Commands) {
-        if ($commandSequence -ne "") {
-            $commandSequence += "; "
+        # Handle different types of commands
+        if ($cmd.StartsWith("cd ")) {
+            # Change directory command
+            $scriptCommands += "Set-Location '$($cmd.Substring(3).Trim())'"
+        }        elseif ($cmd -match "\.\\venv\\Scripts\\activate" -or $cmd -match "venv\\Scripts\\activate") {
+            # Virtual environment activation - try PowerShell first, then batch file
+            $scriptCommands += @"
+if (Test-Path '.\venv\Scripts\Activate.ps1') {
+    & '.\venv\Scripts\Activate.ps1'
+    Write-Host 'Virtual environment activated (PowerShell)' -ForegroundColor Green
+} elseif (Test-Path '.\venv\Scripts\activate.bat') {
+    cmd /c '.\venv\Scripts\activate.bat && powershell'
+    Write-Host 'Virtual environment activated (Batch)' -ForegroundColor Green
+} else {
+    Write-Host 'Warning: Virtual environment activation script not found' -ForegroundColor Yellow
+}
+"@
         }
-        $commandSequence += $cmd
+        elseif ($cmd.StartsWith(".\celery_worker.bat") -or $cmd.StartsWith(".\celery_beat.bat")) {
+            # Batch file execution
+            $scriptCommands += "& '$cmd'"
+        }
+        else {
+            # Regular command
+            $scriptCommands += $cmd
+        }
     }
     
-    # Escape quotes for command line
-    $escapedCommands = $commandSequence -replace '"', '\"'
+    # Create the full command sequence with proper error handling
+    $fullScript = @"
+try {
+    `$Host.UI.RawUI.WindowTitle = '$($App.Name)'
+    Write-Host 'Starting $($App.Name)...' -ForegroundColor Green
+    Write-Host '===========================================' -ForegroundColor Cyan
     
-    # Launch new PowerShell tab with the app name as title
+$($scriptCommands -join "`n    ")
+    
+    Write-Host '===========================================' -ForegroundColor Cyan
+    Write-Host '$($App.Name) commands completed.' -ForegroundColor Green
+} catch {
+    Write-Host 'Error occurred: ' -ForegroundColor Red -NoNewline
+    Write-Host `$_.Exception.Message -ForegroundColor Yellow
+}
+"@
+    
+    # Create a temporary script file to avoid command line length issues
+    $tempScript = [System.IO.Path]::GetTempFileName() + ".ps1"
+    $fullScript | Out-File -FilePath $tempScript -Encoding UTF8
+    
+    # Launch new PowerShell tab with the script
     $tabTitle = $App.Name
     
     if ($WindowsTerminalPath -and (Test-Path $WindowsTerminalPath)) {
@@ -98,21 +139,34 @@ function Launch-App {
             "`"$tabTitle`""
             "powershell.exe"
             "-NoExit"
-            "-Command"
-            "`"$escapedCommands`""
+            "-ExecutionPolicy"
+            "Bypass"
+            "-File"
+            "`"$tempScript`""
         )
         Start-Process -FilePath $WindowsTerminalPath -ArgumentList $wtArgs
     } else {
         # Fallback to regular PowerShell window
         $psArgs = @(
             "-NoExit"
-            "-Command"
-            "`$Host.UI.RawUI.WindowTitle = '$tabTitle'; $escapedCommands"
+            "-ExecutionPolicy"
+            "Bypass"
+            "-File"
+            "`"$tempScript`""
         )
         Start-Process -FilePath "powershell.exe" -ArgumentList $psArgs
     }
     
     Write-Host "Launched: $tabTitle" -ForegroundColor Green
+    
+    # Clean up temp script after a delay (in background)
+    Start-Job -ScriptBlock {
+        param($scriptPath)
+        Start-Sleep -Seconds 10
+        if (Test-Path $scriptPath) {
+            Remove-Item $scriptPath -Force -ErrorAction SilentlyContinue
+        }
+    } -ArgumentList $tempScript | Out-Null
 }
 
 function Get-WindowsTerminalPath {
