@@ -1,0 +1,49 @@
+1. Infraon API
+-------------------------------------
+a. cd D:\Infraon-repos\infraon_api
+b. .\venv\Scripts\activate
+c. python manage.py runserver 9090
+
+2. Infraon Celery Main
+-------------------------------------
+a. cd D:\Infraon-repos\infraon_api
+b. .\venv\Scripts\activate
+c. .\celery_worker.bat
+
+3. Infraon UI
+-------------------------------------
+a. cd D:\Infraon-repos\infraon_ui\
+b. npm start
+
+4. Infraon Marketplace
+-------------------------------------
+a. cd D:\Infraon-repos\infraon_marketplace\
+b. .\venv\Scripts\activate
+c.  python .\marketplace_run.py
+
+5. Websocker server
+-------------------------------------
+a. cd D:\Infraon-repos\infraon_backend_api\
+b. nodemon server.js
+
+6. Marketplace genAI Celery Worker
+-------------------------------------
+a. cd D:\Infraon-repos\infraon_marketplace\marketplace_apps\GenAI\
+b. .\venv\Scripts\activate
+c. cd .\infraon_genai_app\
+d. .\celery_worker.bat
+
+7. Marketplace GenAI Celery Beat
+-------------------------------------
+a. cd D:\Infraon-repos\infraon_marketplace\marketplace_apps\GenAI\
+b. .\venv\Scripts\activate
+c. cd .\infraon_genai_app\
+d. .\celery_beat.bat
+
+8. Infraon Monitoring server
+-------------------------------------
+a. cd D:\Infraon-repos\infraon_service\infraon_devops\monitoring\
+b. .\venv\Scripts\activate
+c. uvicorn app:app --reload --host 0.0.0.0 --port 8000
+
+
