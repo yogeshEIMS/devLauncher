@@ -1,4 +1,4 @@
-# Dev Environment Launcher
+# Infraon DevLaunchPad
 # Parses apps.txt and launches selected applications in separate PowerShell tabs
 
 function Parse-AppsFile {
@@ -52,7 +52,7 @@ function Parse-AppsFile {
 function Show-AppMenu {
     param([array]$Apps)
     
-    Write-Host "`n=== Dev Environment Launcher ===" -ForegroundColor Cyan
+    Write-Host "`n=== Infraon DevLaunchPad ===" -ForegroundColor Cyan
     Write-Host "Available Applications:" -ForegroundColor Yellow
     Write-Host ""
     
@@ -63,8 +63,10 @@ function Show-AppMenu {
     
     Write-Host ""
     Write-Host "Instructions:" -ForegroundColor Yellow
-    Write-Host "- Select single app: a" -ForegroundColor White
-    Write-Host "- Select multiple apps: a,b,c" -ForegroundColor White
+    Write-Host "- Launch app(s): a" -ForegroundColor White
+    Write-Host "- Launch multiple: a,b,c" -ForegroundColor White
+    Write-Host "- Open in VS Code: vs a" -ForegroundColor White
+    Write-Host "- Open multiple in VS Code: vs a,b,c" -ForegroundColor White
     Write-Host "- Type 'q' to quit" -ForegroundColor White
     Write-Host ""
 }
@@ -130,10 +132,11 @@ $($scriptCommands -join "`n    ")
     
     # Launch new PowerShell tab with the script
     $tabTitle = $App.Name
-    
-    if ($WindowsTerminalPath -and (Test-Path $WindowsTerminalPath)) {
-        # Use Windows Terminal if available
+      if ($WindowsTerminalPath -and (Test-Path $WindowsTerminalPath)) {
+        # Use Windows Terminal if available - create new tab in current window
         $wtArgs = @(
+            "-w"
+            "0"
             "new-tab"
             "--title"
             "`"$tabTitle`""
@@ -165,8 +168,85 @@ $($scriptCommands -join "`n    ")
         Start-Sleep -Seconds 10
         if (Test-Path $scriptPath) {
             Remove-Item $scriptPath -Force -ErrorAction SilentlyContinue
+        }    } -ArgumentList $tempScript | Out-Null
+}
+
+function Open-InVSCode {
+    param(
+        [hashtable]$App
+    )
+    
+    # Extract the first directory path from the app commands
+    $projectPath = $null
+    foreach ($cmd in $App.Commands) {
+        if ($cmd.StartsWith("cd ")) {
+            $projectPath = $cmd.Substring(3).Trim()
+            break
         }
-    } -ArgumentList $tempScript | Out-Null
+    }
+    
+    if (-not $projectPath) {
+        Write-Host "No project directory found for $($App.Name)" -ForegroundColor Red
+        return
+    }
+    
+    if (-not (Test-Path $projectPath)) {
+        Write-Host "Project directory does not exist: $projectPath" -ForegroundColor Red
+        return
+    }
+    
+    # Try to find VS Code
+    $vsCodePaths = @(
+        "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe",
+        "$env:ProgramFiles\Microsoft VS Code\Code.exe",
+        "$env:ProgramFiles(x86)\Microsoft VS Code\Code.exe"
+    )
+    
+    $vsCodePath = $null
+    foreach ($path in $vsCodePaths) {
+        if (Test-Path $path) {
+            $vsCodePath = $path
+            break
+        }
+    }
+    
+    # Check if code is in PATH
+    if (-not $vsCodePath) {
+        try {
+            $codeCmd = Get-Command code -ErrorAction Stop
+            $vsCodePath = $codeCmd.Source
+        } catch {
+            Write-Host "VS Code not found. Please install VS Code or add it to your PATH." -ForegroundColor Red
+            return
+        }
+    }
+    
+    # Open the project in VS Code
+    Write-Host "Opening $($App.Name) in VS Code..." -ForegroundColor Green
+    Start-Process -FilePath $vsCodePath -ArgumentList "`"$projectPath`""
+}
+
+function Get-VSCodePath {
+    # Try to find VS Code
+    $vsCodePaths = @(
+        "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe",
+        "$env:ProgramFiles\Microsoft VS Code\Code.exe",
+        "$env:ProgramFiles(x86)\Microsoft VS Code\Code.exe"
+    )
+    
+    foreach ($path in $vsCodePaths) {
+        if (Test-Path $path) {
+            return $path
+        }
+    }
+    
+    # Check if code is in PATH
+    try {
+        $codeCmd = Get-Command code -ErrorAction Stop
+        return $codeCmd.Source
+    } catch {
+        return $null
+    }
 }
 
 function Get-WindowsTerminalPath {
@@ -215,13 +295,20 @@ function Main {
         Write-Error "No apps found in apps.txt"
         return
     }
-    
-    # Get Windows Terminal path
+      # Get Windows Terminal path
     $wtPath = Get-WindowsTerminalPath
     if ($wtPath) {
         Write-Host "Windows Terminal found: $wtPath" -ForegroundColor Green
     } else {
         Write-Host "Windows Terminal not found, will use regular PowerShell windows" -ForegroundColor Yellow
+    }
+    
+    # Check VS Code availability
+    $vsCodePath = Get-VSCodePath
+    if ($vsCodePath) {
+        Write-Host "VS Code found: $vsCodePath" -ForegroundColor Green
+    } else {
+        Write-Host "VS Code not found, VS Code features will be disabled" -ForegroundColor Yellow
     }
     
     while ($true) {
@@ -238,10 +325,23 @@ function Main {
             continue
         }
         
-        # Parse selection (can be single letter or comma-separated)
-        $selectedLetters = $selection -split "," | ForEach-Object { $_.Trim().ToLower() }
+        # Check if this is a VS Code command
+        $isVSCodeCommand = $false
+        $appSelection = $selection
         
-        $launchedCount = 0
+        if ($selection.ToLower().StartsWith("vs ")) {
+            if (-not $vsCodePath) {
+                Write-Host "VS Code is not available. Please install VS Code first." -ForegroundColor Red
+                continue
+            }
+            $isVSCodeCommand = $true
+            $appSelection = $selection.Substring(3).Trim()
+        }
+        
+        # Parse selection (can be single letter or comma-separated)
+        $selectedLetters = $appSelection -split "," | ForEach-Object { $_.Trim().ToLower() }
+        
+        $processedCount = 0
         foreach ($letter in $selectedLetters) {
             # Convert letter back to number
             $appNumber = [int][char]$letter - 96
@@ -250,16 +350,21 @@ function Main {
             $selectedApp = $apps | Where-Object { [int]$_.Number -eq $appNumber }
             
             if ($selectedApp) {
-                Launch-App -App $selectedApp -WindowsTerminalPath $wtPath
-                $launchedCount++
-                Start-Sleep -Milliseconds 500  # Small delay between launches
+                if ($isVSCodeCommand) {
+                    Open-InVSCode -App $selectedApp
+                } else {
+                    Launch-App -App $selectedApp -WindowsTerminalPath $wtPath
+                }
+                $processedCount++
+                Start-Sleep -Milliseconds 500  # Small delay between operations
             } else {
                 Write-Host "Invalid selection: $letter" -ForegroundColor Red
             }
         }
         
-        if ($launchedCount -gt 0) {
-            Write-Host "`nLaunched $launchedCount app(s). Press Enter to continue or 'q' to quit..." -ForegroundColor Yellow
+        if ($processedCount -gt 0) {
+            $action = if ($isVSCodeCommand) { "opened in VS Code" } else { "launched" }
+            Write-Host "`n$processedCount app(s) $action. Press Enter to continue or 'q' to quit..." -ForegroundColor Yellow
         }
     }
 }
