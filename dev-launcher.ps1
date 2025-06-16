@@ -130,17 +130,23 @@ $($scriptCommands -join "`n    ")
     # Create a temporary script file to avoid command line length issues
     $tempScript = [System.IO.Path]::GetTempFileName() + ".ps1"
     $fullScript | Out-File -FilePath $tempScript -Encoding UTF8
-    
-    # Launch new PowerShell tab with the script
+      # Launch new PowerShell tab with the script
     $tabTitle = $App.Name
     if ($WindowsTerminalPath -and (Test-Path $WindowsTerminalPath)) {
-        # Use Windows Terminal if available - create new tab in current window
+        # Define tab colors for different apps (cycling through colors)
+        $tabColors = @("#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FECA57", "#FF9FF3", "#54A0FF", "#5F27CD")
+        $colorIndex = ([int]$App.Number - 1) % $tabColors.Length
+        $tabColor = $tabColors[$colorIndex]
+        
+        # Use Windows Terminal if available - create new tab in current window with custom color
         $wtArgs = @(
             "-w"
             "0"
             "new-tab"
             "--title"
             "`"$tabTitle`""
+            "--tabColor"
+            $tabColor
             "powershell.exe"
             "-NoExit"
             "-ExecutionPolicy"

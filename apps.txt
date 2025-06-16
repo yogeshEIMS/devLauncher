@@ -1,4 +1,4 @@
-1. Infraon API
+1. Infraon Django API
 -------------------------------------
 a. cd D:\Infraon-repos\infraon_api
 b. .\venv\Scripts\activate
@@ -26,19 +26,17 @@ c.  python .\marketplace_run.py
 a. cd D:\Infraon-repos\infraon_backend_api\
 b. nodemon server.js
 
-6. Marketplace genAI Celery Worker
+6. MKT GenAI Celery Worker
 -------------------------------------
 a. cd D:\Infraon-repos\infraon_marketplace\marketplace_apps\GenAI\
 b. .\venv\Scripts\activate
-c. cd .\infraon_genai_app\
-d. .\celery_worker.bat
+c. .\celery_worker.bat
 
-7. Marketplace GenAI Celery Beat
+7. MKT GenAI Celery Beat
 -------------------------------------
 a. cd D:\Infraon-repos\infraon_marketplace\marketplace_apps\GenAI\
 b. .\venv\Scripts\activate
-c. cd .\infraon_genai_app\
-d. .\celery_beat.bat
+c. .\celery_beat.bat
 
 8. Infraon Monitoring server
 -------------------------------------
